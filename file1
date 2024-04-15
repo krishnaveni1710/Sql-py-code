@@ -1,0 +1,146 @@
+sql
+Copy code
+-- Create External Data Source for Azure Blob Storage
+CREATE EXTERNAL DATA SOURCE AzureBlobStorage
+WITH (
+    TYPE = HADOOP,
+    LOCATION = 'abfss://container@storageaccount.dfs.core.windows.net/',
+    CREDENTIAL = AzureStorageCredential
+);
+
+-- Create External Table for data in Azure Blob Storage
+CREATE EXTERNAL TABLE RawData (
+    column1 INT,
+    column2 VARCHAR(100),
+    column3 DATETIME
+)
+WITH (
+    LOCATION = '/path/to/data/',
+    DATA_SOURCE = AzureBlobStorage,
+    FILE_FORMAT = ParquetFileFormat
+);
+
+-- Create a staging table in Azure Synapse Analytics
+CREATE TABLE StagingData (
+    column1 INT,
+    column2 VARCHAR(100),
+    column3 DATETIME
+);
+
+-- Insert data from external table into staging table
+INSERT INTO StagingData
+SELECT * FROM RawData;
+
+-- Perform transformations and data cleansing on StagingData table
+-- Example:
+CREATE TABLE TransformedData AS
+SELECT 
+    column1,
+    UPPER(column2) AS column2,
+    DATEADD(day, 1, column3) AS column3
+FROM StagingData;
+Python Code for Azure Data Factory:
+python
+Copy code
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.datafactory import DataFactoryManagementClient
+from datetime import datetime
+
+# Initialize Data Factory client
+credential = DefaultAzureCredential()
+subscription_id = 'your-subscription-id'
+resource_group_name = 'your-resource-group'
+data_factory_name = 'your-data-factory-name'
+
+data_factory_client = DataFactoryManagementClient(credential, subscription_id)
+
+# Define linked services
+source_linked_service = {
+    "name": "AzureBlobStorageLinkedService",
+    "properties": {
+        "type": "AzureBlobStorage",
+        "typeProperties": {
+            "connectionString": {
+                "type": "SecureString",
+                "value": "your-connection-string"
+            }
+        }
+    }
+}
+
+sink_linked_service = {
+    "name": "AzureSynapseLinkedService",
+    "properties": {
+        "type": "AzureSynapse",
+        "typeProperties": {
+            "connectionString": {
+                "type": "SecureString",
+                "value": "your-synapse-connection-string"
+            }
+        }
+    }
+}
+
+# Define datasets
+source_dataset = {
+    "name": "AzureBlobStorageDataset",
+    "properties": {
+        "type": "AzureBlob",
+        "linkedServiceName": {
+            "referenceName": "AzureBlobStorageLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "folderPath": "your-folder-path",
+        "fileName": "your-file-name",
+        "format": {
+            "type": "TextFormat"
+        }
+    }
+}
+
+sink_dataset = {
+    "name": "AzureSynapseDataset",
+    "properties": {
+        "type": "AzureSynapseTable",
+        "linkedServiceName": {
+            "referenceName": "AzureSynapseLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "tableName": "TransformedData"
+    }
+}
+
+# Define pipeline
+pipeline = {
+    "name": "ETLPipeline",
+    "properties": {
+        "activities": [{
+            "name": "CopyData",
+            "type": "Copy",
+            "inputs": [{
+                "referenceName": "AzureBlobStorageDataset",
+                "type": "DatasetReference"
+            }],
+            "outputs": [{
+                "referenceName": "AzureSynapseDataset",
+                "type": "DatasetReference"
+            }],
+            "typeProperties": {
+                "source": {
+                    "type": "BlobSource"
+                },
+                "sink": {
+                    "type": "SqlSink",
+                    "writeBatchSize": 10000
+                }
+            }
+        }]
+    }
+}
+
+# Create linked services, datasets, and pipeline in Data Factory
+data_factory_client.linked_services.create_or_update(resource_group_name, data_factory_name, "AzureBlobStorageLinkedService", source_linked_service)
+data_factory_client.linked_services.create_or_update(resource_group_name, data_factory_name, "AzureSynapseLinkedService", sink_linked_service)
+data_factory_client.datasets.create_or_update(resource_group_name, data_factory_name, "AzureBlobStorageDataset", source_dataset)
+data_factory_client.datasets.create_or_update(resource_group_name, data_factory_name, "AzureSynapseDataset", sink_dataset)
+data_factory_client.pipelines.create_or_update(resource_group_name, data_fa
